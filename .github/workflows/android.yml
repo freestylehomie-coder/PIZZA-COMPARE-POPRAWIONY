@@ -1,0 +1,53 @@
+name: Android CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle caching
+        uses: gradle/actions/setup-gradle@v3
+
+      # === Jeśli masz wrapper (`gradlew`) ===
+      - name: Build with Gradle wrapper
+        if: ${{ hashFiles('gradlew') != '' }}
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon --stacktrace assembleDebug
+
+      # === Fallback: brak wrappera — pobiera Gradle 8.7 i buduje ===
+      - name: Install Gradle 8.7 (no wrapper)
+        if: ${{ hashFiles('gradlew') == '' }}
+        run: |
+          curl -sLo gradle.zip https://services.gradle.org/distributions/gradle-8.7-bin.zip
+          unzip -q gradle.zip
+          echo "$PWD/gradle-8.7/bin" >> $GITHUB_PATH
+
+      - name: Build with Gradle (no wrapper)
+        if: ${{ hashFiles('gradlew') == '' }}
+        run: gradle --no-daemon --stacktrace assembleDebug
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug.apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
